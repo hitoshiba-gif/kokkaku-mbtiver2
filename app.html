@@ -747,7 +747,10 @@ function renderResult(){
           <p>${bodyDesc}</p>
 
           <h3>似合いやすいブランド</h3>
-          <div class="chips">${brands.map(b=>`<span class="chip">${b}</span>`).join('')}</div>
+         
+        　　<div class="chips brand-chips">
+  ${brands.map(b=>`<span class="chip" title="${b}">${b}</span>`).join('')}
+</div>
 
           <h3>スタイリング指針</h3>
           <div class="cols" style="grid-template-columns:1fr 1fr">
