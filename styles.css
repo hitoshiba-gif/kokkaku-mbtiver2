@@ -290,3 +290,54 @@ section.card { margin-bottom: 32px; }
   object-fit: contain;   /* 全体を収める */
   border-radius:12px;
 }
+
+/* ===== Brand chips: responsive layout ===== */
+.brand-chips{ display:flex; flex-wrap:wrap; gap:8px; }
+
+.brand-chips .chip{
+  padding:10px 12px;
+  border-radius:999px;
+  line-height:1.2;
+}
+
+/* 〜760px：2列グリッドで見やすく */
+@media (max-width: 760px){
+  .brand-chips{
+    display:grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap:8px;
+  }
+  .brand-chips .chip{
+    width:100%;
+    justify-self:stretch;
+    text-align:center;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;   /* 長いブランド名は省略 */
+    font-size:13px;           /* ほんの少し小さく */
+    padding:10px 10px;
+  }
+}
+
+/* 761〜1024px：3列で効率配置 */
+@media (min-width: 761px) and (max-width: 1024px){
+  .brand-chips{
+    display:grid;
+    grid-template-columns: repeat(3, minmax(0,1fr));
+  }
+}
+
+/* 超狭幅デバイスでの保険（横スクロール） */
+@media (max-width: 360px){
+  .brand-chips{
+    display:block;
+    overflow-x:auto;
+    white-space:nowrap;
+    padding-bottom:6px;
+  }
+  .brand-chips .chip{
+    display:inline-block;
+    width:auto;
+    margin-right:8px;
+  }
+}
