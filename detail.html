@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>タイプ詳細 - 骨格MBTI診断</title>
+  <link rel="stylesheet" href="styles.css">
+
+  <style>
+    .hero-image {
+  width: 100%;
+  min-height: 45vh;                /* ← 高さを少し減らす（前は60vh） */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f8f8;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+}
+@media (max-width: 768px) {
+      .hero-image { min-height: 40vh; }
+      .hero-image img { max-width: 90%; max-height: 70%; }
+    }
+
+    @media (min-width: 1024px) {
+      .hero-image { min-height: 50vh; }
+      .hero-image img { max-width: 70%; max-height: 70%; }
+    }
+.hero-image img {
+  max-width: 80%;                  /* ← 横幅を画面の8割までに制限 */
+  max-height: 80%;                 /* ← 縦も画面の8割までに制限 */
+  object-fit: contain;
+  display: block;
+  border-radius: 12px;
+}
+    .section {
+      background: var(--card);
+      border: 1px solid #222633;
+      border-radius: 16px;
+      padding: 18px 22px;
+      margin-top: 18px;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+    }
+
+    h2 { margin-top: 0; }
+    ul { padding-left: 20px; }
+    .celeb-list { margin: 0.4em 0; }
+    .chip {
+      display:inline-block;
+      margin:3px;
+      padding:5px 10px;
+      border-radius:999px;
+      font-size:13px;
+      background:color-mix(in oklab, var(--accent) 10%, transparent);
+      border:1px solid color-mix(in oklab, var(--accent) 25%, transparent);
+    }
+    .footer {
+      margin-top: 30px;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1 id="title">タイプ詳細</h1>
+      <p class="muted" id="subtitle"></p>
+    </header>
+
+    <div class="hero-image">
+      <img id="hero" alt="タイプ画像">
+    </div>
+
+    <section class="section">
+      <h2>💎 コンセプト</h2>
+      <p id="concept"></p>
+    </section>
+
+    <section class="section">
+      <h2>🦴 骨格の特徴</h2>
+      <p id="bodyDetail"></p>
+    </section>
+
+    <section class="section">
+      <h2>👗 おすすめの服装</h2>
+      <ul id="outfitTips"></ul>
+
+      <h3>避けたほうがよい傾向</h3>
+      <ul id="avoid"></ul>
+    </section>
+
+    <section class="section">
+      <h2>🌟 似ている芸能人</h2>
+      <div id="celebrities"></div>
+    </section>
+
+    <footer class="footer">
+      <button onclick="history.back()" class="btn secondary">← 戻る</button><br>
+      <span>© 2025 Kokkaku MBTI Project</span>
+    </footer>
+  </div>
+
+  <script src="types.js"></script>
+  <script>
+    const TYPES = window.KM_TYPES;
+    const params = new URLSearchParams(location.search);
+    const code = (params.get('code') || '').toUpperCase();
+    const type = TYPES[code];
+
+    if(!type){
+      document.getElementById('title').textContent = 'タイプが見つかりません';
+    } else {
+      // テーマを反映
+      document.body.dataset.theme = type.base;
+
+      document.getElementById('title').textContent = `${code} – ${type.name}`;
+      document.getElementById('subtitle').textContent = type.base + " タイプ";
+      document.getElementById('hero').src = type.image;
+      document.getElementById('concept').textContent = type.concept;
+      document.getElementById('bodyDetail').textContent = type.bodyDetail;
+
+      document.getElementById('outfitTips').innerHTML = type.outfitTips.map(t=>`<li>${t}</li>`).join('');
+      document.getElementById('avoid').innerHTML = type.avoid?.map(t=>`<li>${t}</li>`).join('') || '';
+
+      const celeb = type.celebrities;
+      if (celeb) {
+        let html = '';
+        if (celeb.jp) html += `<p class="celeb-list"><b>日本:</b> ${celeb.jp.join('・')}</p>`;
+        if (celeb.kr) html += `<p class="celeb-list"><b>韓国:</b> ${celeb.kr.join('・')}</p>`;
+        if (celeb.global) html += `<p class="celeb-list"><b>海外:</b> ${celeb.global.join('・')}</p>`;
+        document.getElementById('celebrities').innerHTML = html;
+      }
+    }
+  </script>
+</body>
+</html>

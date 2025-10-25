@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>骨格MBTI診断</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="WAVE"> <!-- ←ここでテーマ切替（WAVE/NATURAL/STRAIGHT） -->
+  <div class="wrap">
+    <header>
+      <h1>骨格MBTI診断</h1>
+      <span class="badge">ver.3</span>
+    </header>
+
+    <!-- ===== カード1：イントロ ===== -->
+    <section class="card hero-card">
+      <h2>あなたの「骨格 × 性格タイプ」を診断</h2>
+      <p class="muted">16タイプの骨格MBTI診断で、自分の印象構造を知ろう。</p>
+      <div class="controls">
+        <button onclick="location.href='app.html'">診断をはじめる</button>
+        <button class="secondary" onclick="location.href='result.html'">結果を見る</button>
+      </div>
+    </section>
+
+    <!-- ===== カード2：特徴説明 ===== -->
+    <section class="card">
+      <h3>この診断の特徴</h3>
+      <ul>
+        <li>骨格の特徴（ストレート / ウェーブ / ナチュラル）をもとに分析</li>
+        <li>MBTI要素をかけ合わせて16タイプを導出</li>
+        <li>ファッション・印象・心理傾向をトータルで提示</li>
+      </ul>
+    </section>
+
+    <!-- ===== カード3：ギャラリー or 結果一覧 ===== -->
+   <!-- ===== カード3：ギャラリー導線 ===== -->
+<section class="card">
+  <h3>タイプギャラリー</h3>
+  <p class="muted">全16タイプを、WAVE / NATURAL / STRAIGHT に分けて一覧できます。</p>
+  <div class="controls">
+    <button onclick="location.href='gallery.html'">ギャラリーを見る</button>
+    <button class="secondary" onclick="location.href='app.html'">診断する</button>
+  </div>
+</section>
+    <footer class="footer">
+      <span class="small">© 2025 Kokkaku MBTI Project</span>
+      <span>
+    <a class="muted" href="terms.html">Terms</a> ・
+    <a class="muted" href="privacy.html">Privacy</a>
+  </span>
+</footer>
+    </footer>
+  </div>
+  
+</body>
+</html>

@@ -1,0 +1,292 @@
+
+/* ===== THEME (short & clean) ===== */
+:root{
+  --bg: #ffffff;
+  --ink: #222222;
+  --muted: #667085;
+  --accent: #c9b8ff;
+  --card: #ffffff;
+}
+
+/* WAVE（ピンク） */
+body[data-theme="WAVE"]{
+  --bg: #FFF7FA;
+  --ink: #5A2A41;
+  --muted: #8C6677;
+  --accent: #F7C6D9;
+  --card: #FFFFFF;
+}
+/* NATURAL（グリーン） */
+body[data-theme="NATURAL"]{
+  --bg: #F8FBF7;
+  --ink: #324A35;
+  --muted: #6A7C6F;
+  --accent: #B6D7A8;
+  --card: #FFFFFF;
+}
+/* STRAIGHT（ブルー） */
+body[data-theme="STRAIGHT"]{
+  --bg: #F7FAFD;
+  --ink: #1F3347;
+  --muted: #5F6F81;
+  --accent: #A4C6EB;
+  --card: #FFFFFF;
+}
+
+/* ===== 基本（黒固定を完全撤去） ===== */
+html, body{
+  margin:0;
+  font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+  line-height:1.6;
+  background: var(--bg) !important;      /* ← ここで最優先 */
+  color: var(--ink) !important;
+}
+body::before{ content:none !important; }  /* 黒オーバーレイ無効化 */
+#app, .wrap{
+  background: transparent !important;     /* ラッパの黒を無効化 */
+}
+
+/* レイアウト */
+.wrap{ max-width:980px; margin:0 auto; padding:32px 20px; }
+header{ display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+h1{ margin:0; font-size:24px; }
+
+/* カード */
+.card{
+  background: var(--card) !important;
+  color: var(--ink) !important;
+  border:1px solid color-mix(in oklab, var(--ink) 12%, transparent);
+  border-radius:16px;
+  box-shadow:0 8px 30px rgba(17 24 39 / .10), 0 2px 10px rgba(17 24 39 / .06);
+  padding:20px;
+}
+
+/* テキスト */
+.muted,.small{ color: var(--muted) !important; }
+.badge,.pill,.tag,.chip{
+  background: color-mix(in oklab, var(--accent) 18%, transparent);
+  border:1px solid color-mix(in oklab, var(--accent) 28%, transparent);
+  color: color-mix(in oklab, var(--ink) 90%, black);
+  border-radius:999px; padding:4px 10px; font-size:12px;
+}
+
+/* ボタン */
+button{
+  appearance:none; border:none; border-radius:12px;
+  padding:12px 16px; font-weight:700; cursor:pointer;
+  background: var(--accent); color:#0b0e15;
+}
+button.secondary{
+  background: color-mix(in oklab, var(--accent) 18%, transparent);
+  border:1px solid color-mix(in oklab, var(--accent) 28%, transparent);
+  color: color-mix(in oklab, var(--ink) 90%, black);
+}
+
+/* 設問/メーター */
+.q,.trait{
+  background: var(--card) !important;
+  border:1px solid color-mix(in oklab, var(--ink) 12%, transparent) !important;
+  border-radius:12px; padding:12px;
+}
+.q h4,.trait .title{
+  margin:0 0 8px 0; font-size:15px;
+  color: color-mix(in oklab, var(--ink) 95%, black) !important;
+}
+.scale label,.trait .ends{ font-size:12px; color: var(--muted) !important; }
+.meter{
+  position:relative; height:10px; border-radius:999px; overflow:hidden;
+  background: color-mix(in oklab, var(--ink) 10%, transparent);
+  border:1px solid color-mix(in oklab, var(--ink) 14%, transparent);
+}
+.meter .fill{
+  position:absolute; inset:0 0 0 0; width:0; height:100%;
+  background: linear-gradient(90deg, var(--accent), color-mix(in oklab, var(--accent) 60%, white));
+}
+.meter .thumb{
+  position:absolute; top:50%; transform:translate(-50%,-50%);
+  width:18px; height:18px; border-radius:50%;
+  background:#fff; border:2px solid color-mix(in oklab, var(--ink) 45%, black);
+  box-shadow:0 2px 6px rgba(0,0,0,.15);
+}
+
+/* スライダー（Safari/Firefox含む） */
+input[type=range]{ width:100%; height:6px; border-radius:999px;
+  background: color-mix(in oklab, var(--accent) 20%, transparent);
+  accent-color: var(--accent); outline:none; -webkit-appearance:none;
+}
+input[type=range]::-webkit-slider-runnable-track{
+  height:6px; border-radius:999px;
+  background: color-mix(in oklab, var(--accent) 20%, transparent) !important;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; width:20px; height:20px; margin-top:-7px;
+  border-radius:50%; background:#fff; border:2px solid var(--accent);
+  box-shadow:0 2px 6px rgba(0,0,0,.2);
+}
+input[type=range]::-moz-range-track{
+  height:6px; border-radius:999px;
+  background: color-mix(in oklab, var(--accent) 20%, transparent) !important;
+}
+input[type=range]::-moz-range-thumb{
+  width:20px; height:20px; border-radius:50%;
+  background:#fff; border:2px solid var(--accent); box-shadow:0 2px 6px rgba(0,0,0,.2);
+}
+
+/* ダッシュボード（黒下地をやめる） */
+.dash{ margin-top:40px; }
+.dash-card{ background: var(--card) !important; border:1px solid color-mix(in oklab, var(--ink) 12%, transparent); border-radius:16px; padding:18px; }
+.dash-frame{ margin-top:12px; border-radius:12px; overflow:hidden; background: var(--card) !important; border:1px solid color-mix(in oklab, var(--ink) 12%, transparent); }
+.dash-embed{ width:100%; aspect-ratio:16/9; display:block; border:0; background:transparent !important; }
+
+/* 小さめデバイス */
+@media (max-width:760px){
+  .wrap{ padding:20px 16px; }
+  .footer{ position: sticky; bottom:0; z-index:20; background: color-mix(in oklab, var(--bg) 92%, transparent); padding-top:10px; margin-top:18px; }
+}
+
+/* === indexカード向けの小要素 === */
+.hero-card {
+  text-align: center;
+  padding: 40px 24px;
+}
+.hero-card h2 { font-size: 22px; margin-bottom: 12px; }
+.hero-card p { font-size: 15px; color: var(--muted); margin-bottom: 24px; }
+.hero-card .controls { justify-content: center; }
+
+/* indexギャラリーの小カード */
+.mini-card {
+  text-align:center;
+  padding: 20px 10px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in oklab, var(--ink) 12%, transparent);
+  background: color-mix(in oklab, var(--card) 96%, transparent);
+  color: var(--ink);
+  font-weight:600;
+  box-shadow:0 4px 14px rgba(0,0,0,0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.mini-card:hover {
+  transform: translateY(-4px);
+  box-shadow:0 6px 18px rgba(0,0,0,0.12);
+}
+
+/* セクション間の余白 */
+section.card { margin-bottom: 32px; }
+.hero {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: 380px; /* 好みで調整（350〜420pxくらいが見やすい） */
+  object-fit: contain; /* 切り取らず全体を収める */
+  border-radius: 12px;
+  border: 1px solid color-mix(in oklab, var(--ink) 12%, transparent);
+  background: var(--bg);
+  box-shadow: 0 4px 16px rgba(0,0,0,.08);
+  display: block;
+  margin: 0 auto; /* 中央寄せ */
+}
+@media (max-width: 760px) {
+  .hero {
+    max-height: 300px;
+  }
+}
+
+/* ===== 5段階ボタンUI ===== */
+.scale-btns{
+  display:flex;
+  gap:8px;
+  margin:8px 0 10px;
+}
+.scale-btns .opt{
+  flex:1;
+  padding:10px 0;
+  border-radius:8px;
+  border:1px solid color-mix(in oklab, var(--ink) 15%, transparent);
+  background: color-mix(in oklab, var(--ink) 6%, var(--card));
+  color: color-mix(in oklab, var(--ink) 90%, black);
+  font-size:14px;
+  cursor:pointer;
+  transition:transform .05s ease, background .15s ease;
+}
+.scale-btns .opt:hover{ transform: translateY(-1px); }
+.scale-btns .opt.active{
+  background: var(--accent);
+  color:#0b0e15;
+  border-color: color-mix(in oklab, var(--accent) 40%, transparent);
+  font-weight:700;
+}
+
+#type-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.gallery-card {
+  background: var(--card);
+  border-radius: 16px;
+  border: 1px solid color-mix(in oklab, var(--ink) 10%, transparent);
+  overflow: hidden;
+  transition: transform .25s ease, box-shadow .25s ease;
+}
+
+.gallery-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0,0,0,.3);
+}
+
+.gallery-card img {
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+}
+
+.gallery-card .info {
+  padding: 14px;
+}
+
+.gallery-card .info h3 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.gallery-card .base {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+/* 系統ごとの背景グラデーション */
+.gallery-card.WAVE { background: linear-gradient(180deg,#ffd6e8 0%,#fff 40%,#ffe9f0 100%); }
+.gallery-card.NATURAL { background: linear-gradient(180deg,#e3f7e0 0%,#fff 40%,#d8f5e2 100%); }
+.gallery-card.STRAIGHT { background: linear-gradient(180deg,#e0f0ff 0%,#fff 40%,#d6e7ff 100%); }
+
+.btn:hover {
+  background: #555;
+  transform: translateY(-2px);
+}
+
+/* ===== Share buttons ===== */
+.share-box{
+  margin-top:16px; padding:12px;
+  border:1px solid color-mix(in oklab, var(--ink) 12%, transparent);
+  border-radius:12px;
+}
+.share-buttons{ display:flex; gap:10px; flex-wrap:wrap; }
+.share-btn{
+  padding:10px 14px; border:0; border-radius:10px;
+  font-weight:700; cursor:pointer;
+  background: var(--accent); color:#0b0e15;
+}
+#btn-x{ background:#1da1f2; color:#fff; }
+#btn-line{ background:#00c300; color:#fff; }
+#btn-copy{ background:#555; color:#fff; }
+
+/* 画像がはみ出す問題の最終対策 */
+.hero{
+  width:100%;
+  max-height: 38vh;      /* お好みで 32〜48vh 程度 */
+  object-fit: contain;   /* 全体を収める */
+  border-radius:12px;
+}

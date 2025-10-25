@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="color-scheme" content="light dark">
+<title>骨格MBTI Web診断 v3（Final + Brand/Style）</title>
+<link rel="stylesheet" href="./styles.css?v=1">
+</head>
+<body data-theme="WAVE"></body>
+<div class="wrap">
+  <header>
+    <span class="badge">Final Edition</span>
+    <h1>骨格MBTI Web診断 v3</h1>
+  </header>
+  <div id="app" class="card"></div>
+  <section id="dashboard" class="dash">
+  <div class="dash-card">
+    <div class="dash-head">
+      <h2>みんなの診断傾向</h2>
+      <p class="muted">最新集計をリアルタイム表示</p>
+    </div>
+
+    <div class="dash-frame">
+      <iframe
+        class="dash-embed"
+        src="https://lookerstudio.google.com/embed/reporting/6a1b780b-386d-466c-9624-2e5f9f93f90c/page/Dk1cF"
+        allowfullscreen
+        frameborder="0">
+      </iframe>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<script>
+  document.body.dataset.theme = 'WAVE';
+  // ============ Google Sheets連携設定 ============
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxVWOXNr9rqQsIE5kJl5Ujk1gUJXTIhXGivuojjZbOtGwyvq4-Pp6F4u6K6o7DV9Nuj/exec"
+function sendToSheets(payload){
+  console.log('[GAS] sending...', payload);
+  return fetch(GAS_URL, {
+    method: "POST",
+    // ★ プリフライトを発生させない許可タイプ
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(payload),
+  })
+  .then(r => r.text().then(t => {
+    console.log('[GAS] response:', r.status, t);
+    return { status: r.status, body: t };
+  }))
+  .catch(e => console.error('[GAS] error:', e));
+}
+
+// ユーザーの同意状態を保存/取得（ローカルに保持）
+const CONSENT_KEY = 'km_consent'; // 'yes' | 'no'
+function getConsent(){ return localStorage.getItem(CONSENT_KEY) ?? 'yes'; } // 既定=同意
+function setConsent(v){ localStorage.setItem(CONSENT_KEY, v ? 'yes' : 'no'); }
+
+function makeInitialState(){
+  const make = n => Array(n).fill(3); // スライダー初期値=3
+  return {
+    step: 0,
+    _sentOnce: false,                 // 自動送信フラグもリセット
+    answers: {
+      frame:   make(12),
+      surface: make(12),
+      balance: make(12),
+      line:    make(12)
+    }
+  };
+}
+
+/* ───────── 4軸定義 ───────── */
+/* ───────── 4軸定義（置き換え） ───────── */
+const AXES = [
+  { key:'frame',   codePos:'B', codeNeg:'M', label:'構造軸（Frame）',
+    posLabel:'骨格主導（B）', negLabel:'肉付き主導（M）', threshold:3.5 },
+
+  { key:'surface', codePos:'W', codeNeg:'N', label:'面積軸（Surface）',
+    posLabel:'身体フレーム広（W）', negLabel:'身体フレーム狭（N）', threshold:3.5 },
+
+  { key:'balance', codePos:'U', codeNeg:'L', label:'重心軸（Balance）',
+    posLabel:'上重心（U）', negLabel:'下重心（L）', threshold:3.5 },
+
+  { key:'line',    codePos:'C', codeNeg:'S', label:'ライン軸（Line）',
+    posLabel:'直線（C）', negLabel:'曲線（S）', threshold:3.5 },
+];
+/* ───────── 質問（各12問・5段階） ───────── */
+const QUESTIONS = {
+  frame:[
+    {t:'鎖骨や肋骨のラインがはっきりしている',pos:true},
+    {t:'手首や足首の骨が目立ず、その他の部位も肉感が目立つ',pos:false},
+    {t:'肩や太ももに骨ぼねしさを感じる',pos:true},
+    {t:'体全体が直線的で、凹凸が少ない',pos:true},
+    {t:'動いたとき、筋肉の動きがわかりずらい',pos:true},
+    {t:'身体付きが「シャープ」と言われる',pos:true},
+    {t:'顔に脂肪がつきにくい',pos:true},
+    {t:'写真で見ると骨の位置がわかりずらい',pos:false},
+    {t:'厚手の服でも骨の形が出やすい',pos:true},
+    {t:'運動をしても筋肉がつきやすい',pos:false},
+    {t:'座ると骨盤や関節がごつごつ感じられる',pos:true},
+    {t:'自分の体型は「骨の形」によって決まっている',pos:true}
+  ],
+  surface:[
+    {t:'周囲から実際の身長よりも大きく見えると言われる',pos:true},
+    {t:'肩幅の大きさが顔の横幅三つ分の大きさよりも大きい',pos:true},
+    {t:'厚手より薄手・軽い素材がしっくりくる',pos:true},
+    {t:'静止すると存在感が強い',pos:true},
+    {t:'腕の長さが膝とお尻の中間くらいまである',pos:true},
+    {t:'手が小さいとよく言われる',pos:false},
+    {t:'体のメリハリが少ない',pos:true},
+    {t:'写真で他人と並ぶと身体が大きく見える',pos:true},
+    {t:'首元がゆったりした服がよく似合う',pos:true},
+    {t:'厚みがなく横に広がるような体型をしている',pos:true},
+    {t:'ビッグシルエットの服が似合わない',pos:false},
+    {t:'鎖骨が太く長い',pos:true}
+  ],
+  balance:[
+    {t:'鏡を見ると上半身が目立つように感じる',pos:true},
+    {t:'腰・ヒップが目立つ',pos:true},
+    {t:'脚が長く見える',pos:true},
+    {t:'ウエストラインが低く見える',pos:false},
+    {t:'座ると身長が低く見える',pos:true},
+    {t:'立つと胸や肩の位置が高く見える',pos:true},
+    {t:'ボディラインの出る服が似合う',pos:true},
+    {t:'トップスにボリュームを出すと着膨れする',pos:false},
+    {t:'ワイドパンツよりもスキニーパンツが似合う',pos:true},
+    {t:'上半身にアクセサリーや柄を持ってくるとしっくりくる',pos:true},
+    {t:'首の長さが短め',pos:true},
+    {t:'着丈の短いトップスが似合う',pos:true}
+  ],
+  line:[
+    {t:'手足や体の輪郭がまっすぐに見える',pos:true},
+    {t:'肩や腰に丸みがない',pos:true},
+    {t:'「シャープ」と言われる',pos:true},
+    {t:'首元が空いている服は貧相に見えると言われる',pos:true},
+    {t:'直線的な服が似合う',pos:true},
+    {t:'スーツやシャツがあまり似合わない',pos:false},
+    {t:'体のメリハリが少ない',pos:true},
+    {t:'オーバーサイズの服を切ると着ぶくれする',pos:false},
+    {t:'横顔や横姿が直線的に見える',pos:true},
+    {t:'顔の骨が目立たない',pos:false},
+    {t:'コンパクトな髪型は顔が大きく見える',pos:false},
+    {t:'全体の印象が「すっきり」している',pos:true}
+  ]
+};
+
+/* ───────── Final TYPE 定義（16タイプ：動物・ブランド・ノート） ───────── */
+/* 画像は任意（images/CODE.jpg）。brandHints/styleNotes は結果画面に表示 */
+const TYPE_META = {
+  /* ============== WAVE（柔・軽・下重心） ============== */
+  BNLS:{ // Romantic Wave
+    name:'Romantic Wave', base:'WAVE', emoji:'🐨', animal:'コアラ',
+    image:'images/BNLS.jpg',
+    concept:'甘くやわらか、包容感のあるロマン。',
+    body:'B=やや骨感 / W=広め / L=下重心 / S=曲線強め。上半身は華奢、腰〜ヒップに丸み。骨の主張は弱く、やわらかな陰影と曲線が印象の中心。',
+    brandHints:['SNIDEL','CELFORD','TOCCA','Lily Brown','FRAY I.D','IÉNA','Noela'],
+    styleNotes:[
+      '薄手〜中厚で落ち感のある素材（シフォン/サテン/ジョーゼット）',
+      '襟はラウンド/ハート/スカーフタイで柔らかく',
+      'Aラインやマーメイドで下重心を活かしつつ軽さを足す',
+      '配色は中〜淡色のワントーン、黄みを抑えたピンク/ラベンダー',
+      '硬い直線テーラードは“借りてきた感”が出やすい'
+    ],
+    outfitIdeas:[
+      'レースブラウス＋マーメイドスカート＋2～4cmパンプス',
+      'ショートカーデ＋プリーツスカート＋小ぶりバッグ'
+    ],
+    celebrities:{ jp:['北川景子','有村架純','石田ゆり子'], kr:['TWICE ナヨン'], global:['Lily Collins','Emma Watson'] }
+  },
+
+  MNLC:{ // Urban Elegance (Wave)
+    name:'Urban Elegance (Wave)', base:'WAVE', emoji:'🐺', animal:'オオカミ',
+    image:'images/MNLC.jpg',
+    concept:'静かで芯のある優しさ、穏やかに知的な洗練。',
+    body:'M=肉感寄り / N=コンパクト / L=下重心 / C=直線寄り。柔らかさに直線が混ざる。脚に厚みが出やすいので上にポイントを。',
+    brandHints:['IÉNA','Mila Owen','Plage','N.O.R.C','URBAN RESEARCH','TOMORROWLAND'],
+    styleNotes:[
+      '“Iライン”を意識した縦長設計',
+      '中厚でハリが出すぎないツイル/ポンチ',
+      'ショート丈トップス＋ハイウエストで視線を上へ',
+      'ニュアンスのグレージュ/トープ/ダスティピンク',
+      '肩幅を誇張するパッド強めは避ける'
+    ],
+    outfitIdeas:[
+      'クロップドシャツ＋タックワイド＋ローファー',
+      'リブニット＋ミディタイト＋ショートブーツ'
+    ],
+    celebrities:{ jp:['宮崎あおい','黒木華','吉高由里子'], kr:['ITZY リア'], global:['Keira Knightley','Natalie Portman'] }
+  },
+
+  MWLC:{ // Light Wave
+    name:'Light Wave', base:'WAVE', emoji:'🦋', animal:'バタフライ',
+    image:'images/MWLC.jpg',
+    concept:'風に舞う透明感、まっすぐで軽やかな均衡。',
+    body:'M=肉感 / W=広め / L=下重心 / C=直線。腰〜腿に厚み。軽い素材と縦ラインで“軽やかな直線”を作ると◎。',
+    brandHints:['N.O.R.C','IÉNA','UNIQLO','BEAUTY&YOUTH','TOMORROWLAND','LE PHIL'],
+    styleNotes:[
+      'ハイウエストで脚長補正',
+      '上はコンパクト、下はスッと落ちるIライン',
+      '直線的なシャツ/ノーカラーJKを薄手で',
+      'アクセは細線で軽さを統一',
+      '厚底過多よりフラット～ローヒールで軽量化'
+    ],
+    outfitIdeas:[
+      'ノーカラーシャツ＋ハイウエストパンツ＋ローファー',
+      'クロップドニット＋ストレートデニム＋ミニバッグ'
+    ],
+    celebrities:{ jp:['浜辺美波','堀北真希'], kr:['NewJeans ヘイン'], global:['Selena Gomez','Lily Collins'] }
+  },
+
+  MWLS:{ // Natural Girly
+    name:'Natural Girly', base:'WAVE', emoji:'🐹', animal:'ハムスター',
+    image:'images/MWLS.jpg',
+    concept:'丸みと温かみ、ふんわりとした可憐さ。',
+    body:'M=肉感 / W=広め / L=下重心 / S=曲線。全体にふわっと厚み。可憐ディテールは小さめ＆上側に集約。',
+    brandHints:['SNIDEL','earth music&ecology','Kastane','LOWRYS FARM','tocco closet'],
+    styleNotes:[
+      'Aライン/フレア/ティアードで“下に落ちる”を活かす',
+      '上は短め・袖に少しボリュームで視線UP',
+      '柔らかニット/カットソー中心',
+      '小ぶりバッグ＆繊細アクセで重さを消す',
+      '濃色ワントーンは重たく見えやすい'
+    ],
+    outfitIdeas:[
+      '丸襟ブラウス＋フレアスカート＋バレエシューズ',
+      'ショートカーデ＋ギャザースカート＋ミニショルダー'
+    ],
+    celebrities:{ jp:['上戸彩','桜井日奈子'], kr:['aespa ウィンター','Red Velvet アイリーン'], global:['Ariana Grande','Selena Gomez'] }
+  },
+
+  MNLS:{ // Classic Feminine
+    name:'Classic Feminine', base:'WAVE', emoji:'🕊', animal:'白鳩',
+    image:'images/MNLS.jpg',
+    concept:'柔らかく上品、穏やかに香るエレガンス。',
+    body:'M=肉感 / N=コンパクト / L=下重心 / S=曲線。上半身は華奢で胸〜ウエストはなだらか、下半身に安定。',
+    brandHints:['TOCCA','EPOCA','FOXEY','ANAYI','Apuweiser-riche'],
+    styleNotes:[
+      'ハート/ラウンド/浅Vの女性的な襟型',
+      'ミディ〜ロングのフレア/マーメイド',
+      'サテンやジョーゼットの艶で上品に',
+      '真珠/小粒ジュエリーで清潔感',
+      '直線強いジャケットは短丈で軽く'
+    ],
+    outfitIdeas:[
+      'ボウタイブラウス＋ミディフレア＋パールピアス',
+      'ショートジャケット＋マーメイドスカート'
+    ],
+    celebrities:{ jp:['新垣結衣','白石麻衣'], kr:['IVE ウォニョン'], global:['Ariana Grande','Lily Collins'] }
+  },
+
+  BNLC:{ // Earth Wave
+    name:'Earth Wave', base:'WAVE', emoji:'🐻', animal:'クマ',
+    image:'images/BNLC.jpg',
+    concept:'あたたかく包み込む安定感、癒しの重心。',
+    body:'B=骨感 / N=コンパクト / L=下重心 / C=直線寄り。体幹は安定、直線の芯を感じるがやわらか素材で馴染む。',
+    brandHints:['URBAN RESEARCH ROSSO','Plage','DOORS','JOURNAL STANDARD relume','IÉNA'],
+    styleNotes:[
+      'ロングカーデ/ライトアウターで“包み”を作る',
+      '落ち感あるミッドウェイト素材',
+      'アースカラーの中明度（ベージュ/カーキ/モカ）',
+      '厚底すぎない靴で地面に安定',
+      '上半身に1点だけ明度差で視線UP'
+    ],
+    outfitIdeas:[
+      'ロングカーデ＋Iラインワンピ＋フラット',
+      'スウェット＋サテンスカート＋ローファー'
+    ],
+    celebrities:{ jp:['宮崎あおい','黒木華'], kr:['ITZY リア'], global:['Keira Knightley','Kristen Stewart'] }
+  },
+
+  /* ============== NATURAL（BL系中心） ============== */
+  BWUC:{ // Urban Natural
+    name:'Urban Natural', base:'NATURAL', emoji:'🦄', animal:'ユニコーン',
+    image:'images/BWUC.jpg',
+    concept:'直線×余白、幻想と構造の調和。',
+    body:'B=骨感 / W=広め / U=上重心 / C=直線。手足が長くフレームの存在感が強い。余白を残すミニマルが映える。',
+    brandHints:['JOURNAL STANDARD','UNITED ARROWS','BEAUTY&YOUTH','AURALEE','YLEVE','TODAYFUL'],
+    styleNotes:[
+      '直線×ゆとりのボックス/ストレート',
+      'ライトなセットアップで構造を見せる',
+      'ネックはクルー/ボート/スタンド',
+      '色は無彩色＋少量のソフトカラー',
+      '過度な装飾より素材の良さで勝負'
+    ],
+    outfitIdeas:[
+      'ボクシーJK＋ストレートパンツ＋白スニーカー',
+      'スタンドカラーシャツ＋ロングスカート（直線）'
+    ],
+    celebrities:{ jp:['中村アン','水原希子'], kr:['BLACKPINK リサ','LE SSERAFIM ユンジン'], global:['Cara Delevingne','Gigi Hadid'] }
+  },
+
+  BWUS:{ // Fairy Natural
+    name:'Fairy Natural', base:'NATURAL', emoji:'🦅', animal:'タカ',
+    image:'images/BWUS.jpg',
+    concept:'軽やかで透徹した知性、俯瞰の美学。',
+    body:'B=骨感 / W=広め / U=上重心 / S=曲線寄り。骨の直線にほんのり曲線。上に軽さを集めると空気感が出る。',
+    brandHints:['ENFÖLD','Deuxieme Classe','TOMORROWLAND','athoos','COS'],
+    styleNotes:[
+      '上半身コンパクト×下に直線レイヤー',
+      '淡色×無機質アクセ（シルバー/スチール）',
+      'クリーンなスニーカー/ローファー',
+      '透け/シアーで軽さを足す',
+      '可愛げ要素は“量より質感”で'
+    ],
+    outfitIdeas:[
+      'ショートニット＋スラックス＋メタルアクセ',
+      'シアーシャツ＋ストレートスカート＋ローファー'
+    ],
+    celebrities:{ jp:['綾瀬はるか','戸田恵梨香'], kr:['NewJeans ヘリン'], global:['Zendaya','Keira Knightley'] }
+  },
+
+  BWLC:{ // Classic Natural
+    name:'Classic Natural', base:'NATURAL', emoji:'🦊', animal:'キツネ',
+    image:'images/BWLC.jpg',
+    concept:'端正で機敏、自然体の品格。',
+    body:'B=骨感 / W=広め / L=下重心 / C=直線。肩〜背中のフレームがすっきり。整った直線で“静の品格”。',
+    brandHints:['IÉNA','Plage','TOMORROWLAND','BEAMS','URBAN RESEARCH'],
+    styleNotes:[
+      'シャツ/テーラードは薄手で端正に',
+      'リネン/コットンで清涼感',
+      'センタープレスで直線を強調',
+      'ベージュ〜ネイビー軸のベーシック配色',
+      '装飾は最小限、形で語る'
+    ],
+    outfitIdeas:[
+      'リネンシャツ＋センタープレス＋ローファー',
+      'ノーカラーJK＋Iラインスカート'
+    ],
+    celebrities:{ jp:['吉高由里子','杏'], kr:['LE SSERAFIM ユンジン'], global:['Cara Delevingne','Keira Knightley'] }
+  },
+
+  BWLS:{ // Pure Natural
+    name:'Pure Natural', base:'NATURAL', emoji:'🦌', animal:'シカ',
+    image:'images/BWLS.jpg',
+    concept:'柔らかく静かな調和、森の中の安らぎ。',
+    body:'B=骨感 / W=広め / L=下重心 / S=曲線。直線骨格に柔らかい面、テクスチャーミックスで深みを出すと◎。',
+    brandHints:['nest Robe','Vermeerist BEAMS','Plage','Journal Standard L’essage'],
+    styleNotes:[
+      '下に落ちるAライン/バイアス',
+      'コットン/リネン/ガーゼで質感レイヤー',
+      'ソフトカラーのグラデーション',
+      '木/革/布の自然素材アクセ',
+      'ラグジュアリーは艶よりマット'
+    ],
+    outfitIdeas:[
+      'ゆるブラウス＋バイアススカート＋フラット',
+      'コットンワンピ＋レザー小物（小さめ）'
+    ],
+    celebrities:{ jp:['宮崎あおい','黒木華'], kr:['aespa ウィンター','NewJeans ヘリン'], global:['Keira Knightley','Kristen Stewart'] }
+  },
+
+  /* ============== STRAIGHT（厚・立体・上重心・直線） ============== */
+  BNUS:{ // Elegant Straight
+    name:'Elegant Straight', base:'STRAIGHT', emoji:'🐆', animal:'パンサー',
+    image:'images/BNUS.jpg',
+    concept:'凛として構築的、都会的モード。',
+    body:'B=骨感強 / N=コンパクト / U=上重心 / S=曲線少。厚みより骨の構造が先に立ち、直線×上重心で“意志の強さ”。',
+    brandHints:['Theory','Max Mara','FOXEY','PLST','LE PHIL','TIBI'],
+    styleNotes:[
+      'ショート丈×ハイウエストで重心をさらに上へ',
+      'ハリ素材のIライン（タフタ/トリアセ/ウール）',
+      'テーラード/ノーカラーの直線軸',
+      '高コントラスト配色でキリッと',
+      '装飾は少なめ、エッジを効かせる'
+    ],
+    outfitIdeas:[
+      'ショートジャケット＋ペンシルスカート＋ヒール',
+      'タートルニット＋ハイウエストスラックス'
+    ],
+    celebrities:{ jp:['長澤まさみ','田中みな実'], kr:['IVE ユジン'], global:['Jennifer Lopez','Scarlett Johansson'] }
+  },
+
+  MWUC:{ // Sporty Cool
+    name:'Sporty Cool', base:'STRAIGHT', emoji:'🦈', animal:'サメ',
+    image:'images/MWUC.jpg',
+    concept:'鋭くスマート、研ぎ澄まされたスピード感。',
+    body:'M=肉感 / W=広め / U=上重心 / C=直線。体幹に厚み、上に視線が集まる。機能素材の直線がハマる。',
+    brandHints:['NIKE Sportswear','adidas Originals','P.E NATION','COS','UNIQLO U'],
+    styleNotes:[
+      '直線的トラックパンツ/テーパード×短丈トップス',
+      'モノトーンや寒色でクリーンに',
+      'ツヤを抑えたスポーティミックス',
+      'ボリュームは上：下＝6:4で',
+      '足元は厚底すぎず軽快に'
+    ],
+    outfitIdeas:[
+      'クロップドスウェット＋テーパード＋白スニーカー',
+      '機能JK＋Iラインスカート＋キャップ'
+    ],
+    celebrities:{ jp:['広瀬すず','菜々緒'], kr:['Red Velvet スルギ'], global:['Taylor Swift','Gal Gadot'] }
+  },
+
+  MNUC:{ // Glamorous Cool
+    name:'Glamorous Cool', base:'STRAIGHT', emoji:'🐅', animal:'トラ',
+    image:'images/MNUC.jpg',
+    concept:'立体感と色気、強い存在感。',
+    body:'M=肉感強 / N=コンパクト / U=上重心 / C=直線。胸肩ヒップに立体。ウエストを高くマークして彫刻的に。',
+    brandHints:['Max Mara','ZARA Premium','THE ROW','LE CIEL BLEU','N°21'],
+    styleNotes:[
+      '厚み×直線をいかすテーラード/コルセット風',
+      'ダークトーンに一点光沢（サテン/レザー）',
+      '縦アクセント（ロングネックレス/ベルト）',
+      'ヒールでさらに重心UP',
+      '甘さは抑えめ、曲線は“控えめに一点”'
+    ],
+    outfitIdeas:[
+      'テーラードJK＋ハイウエストタイト＋ピンヒール',
+      'ボディスーツ＋ストレートデニム＋ヒールブーツ'
+    ],
+    celebrities:{ jp:['深田恭子','佐々木希'], kr:['BLACKPINK ジス','TWICE モモ'], global:['Angelina Jolie','Jennifer Lopez'] }
+  },
+
+  MNUS:{ // Romantic Mode
+    name:'Romantic Mode', base:'STRAIGHT', emoji:'🦚', animal:'クジャク',
+    image:'images/MNUS.jpg',
+    concept:'力と優雅の共存、華やかな余韻。',
+    body:'M=肉感 / N=コンパクト / U=上重心 / S=曲線多め。直線骨格に柔らかな曲線要素。厚手サテンやタフタで“強×甘”の調和。',
+    brandHints:['Self-Portrait','N°21','SNIDEL（ドレスライン）','FOXEY','Apuweiser-riche'],
+    styleNotes:[
+      'ウエストマーク強めのフィット&フレア/ペプラム',
+      '厚手サテン/タフタ/ジャカードのリュクス感',
+      'ジュエリーは存在感あるボリューム',
+      '色は寒色～ジュエルトーンでクラシックに',
+      '上のボリュームはややコンパクトに調整'
+    ],
+    outfitIdeas:[
+      'ペプラムトップス＋テーパード＋メタルアクセ',
+      'サテンワンピ＋ショートボレロ'
+    ],
+    celebrities:{ jp:['石原さとみ','橋本環奈'], kr:['aespa カリナ'], global:['Anne Hathaway','Natalie Portman'] }
+  },
+
+  MWUS:{ // Soft Active (Straight)
+    name:'Soft Active (Straight)', base:'STRAIGHT', emoji:'🐬', animal:'イルカ',
+    image:'images/MWUS.jpg',
+    concept:'すっきりとした流線、しなやかな躍動感。',
+    body:'M=肉感 / W=広め / U=上重心 / S=曲線寄り。直線ベースに滑らかな流線。軽量素材で“スピード感”。',
+    brandHints:['PLEATS PLEASE','ISSEY MIYAKE','UNIQLO U','Theory','Lululemon'],
+    styleNotes:[
+      '流線を描くプリーツ/ドレープ（過剰ギャザーは避ける）',
+      '上コンパクト×下スッキリで脚長',
+      '襟はクルー/ボートでクリーンに',
+      '配色は寒色中心にクリア',
+      'スポーティ要素はミニマルに'
+    ],
+    outfitIdeas:[
+      'プリーツトップ＋ストレートパンツ＋ミニバッグ',
+      'コンパクトカットソー＋Iラインスカート＋スニーカー'
+    ],
+    celebrities:{ jp:['木村文乃','広瀬すず'], kr:['Red Velvet スルギ','IVE ユジン'], global:['Taylor Swift','Gal Gadot'] }
+  },
+
+  BNUC:{ // Structural Mode
+    name:'Structural Mode', base:'STRAIGHT', emoji:'🦉', animal:'フクロウ',
+    image:'images/BNUC.jpg',
+    concept:'精密で構築的、夜に光る知性。',
+    body:'B=骨感強 / N=コンパクト / U=上重心 / C=直線。建築的ラインが似合う究極の直線軸。モノトーン×構造でキメる。',
+    brandHints:['COS','Theory','AURALEE','HYKE','S’YTE','UNIQLO +J'],
+    styleNotes:[
+      'ショート丈ジャケットで上重心を強調',
+      '硬質素材で直線をくっきり（ウールギャバ/コットンツイル）',
+      'モノトーンや低彩度配色',
+      '金属系アクセで知性を補強',
+      '装飾は排して“角度”を際立てる'
+    ],
+    outfitIdeas:[
+      'ボクシーJK＋ストレートスラックス＋レザーシューズ',
+      'アーキテクチュラルなワンピ＋ショートブーツ'
+    ],
+    celebrities:{ jp:['松下奈緒','木村文乃'], kr:['TWICE モモ'], global:['Charlize Theron','Cate Blanchett'] }
+  }
+};
+
+/* ───────── 汎用説明/提案ロジック（タイプ固有が無ければ自動補完） ───────── */
+function describeBodyByCode(code){
+  const [a,b,c,d]=code.split('');
+  const p1=(a==='B')?'骨格や関節の存在感がベース':'肉感・筋肉の厚みがベース';
+  const p2=(b==='W')?'全体は軽やかで繊細':'全体は重厚で安定感あり';
+  const p3=(c==='U')?'上重心で上半身に視線が集まりやすい':'下重心で下半身に安定が出やすい';
+  const p4=(d==='C')?'輪郭は直線寄りでシャープ':'輪郭は曲線寄りでソフト';
+  return `【骨格印象まとめ】${p1}。${p2}。${p3}。${p4}。`;
+}
+function autoBrands(code, base){
+  const [a,b,c,d]=code.split('');
+  const core={WAVE:['SNIDEL','Lily Brown','Mila Owen','IÉNA','N.O.R.C','URBAN RESEARCH ROSSO'],
+              NATURAL:['JOURNAL STANDARD','IÉNA','UNITED ARROWS','BEAUTY&YOUTH','BEAMS','TOMORROWLAND'],
+              STRAIGHT:['Theory','Max Mara','PLST','UNIQLO U','COS','ZARA Premium']};
+  const addLine=(d==='C')?['COS','Theory','AURALEE']:['SNIDEL','TOCCA','CELFORD'];
+  const addDen=(b==='W')?['Deuxieme Classe','ENFÖLD']:['Max Mara','STUNNING LURE'];
+  const addBal=(c==='U')?['Drawer','FOXEY']:['URBAN RESEARCH','Spick & Span'];
+  return [...new Set([...(core[base]||[]),...addLine,...addDen,...addBal])].slice(0,7);
+}
+function autoStyle(code){
+  const [a,b,c,d]=code.split('');
+  const fabric=(b==='N')?['薄手ウール','シフォン/ジョーゼット','スムースニット']:['ミッド〜厚手ウール','ハリのあるツイル','サテン/ジャカード'];
+  const neck=(d==='C')?['クルー/ボート','スタンドカラー','浅Vシャツ']:['ラウンド/スカーフタイ','ハートネック','Vネック＋ドレープ'];
+  const silhouette=(c==='U')?['短めトップス×ハイウエスト','Iラインワンピ','コンパクトJK']:['ロングトップス×落ち感ボトム','Aライン/フレア','ドロップショルダー'];
+  const lines=(d==='C')?['センタープレス','ストレートスカート','テーラード']:['バイアス/ドレープ','マーメイド/フレア','ギャザー控えめ'];
+  return {fabric,neck,silhouette,lines};
+}
+
+/* ───────── UIレンダリング ───────── */
+const $=(s,el=document)=>el.querySelector(s);
+const app=document.getElementById('app');
+let state = makeInitialState();
+
+
+function render(){
+  app.innerHTML='';
+  if(state.step===0) return renderIntro();
+  if(state.step>=1 && state.step<=4) return renderAxis(AXES[state.step-1]);
+  if(state.step===5) return renderResult();
+}
+
+function renderIntro(){
+  const el=document.createElement('div');
+  el.innerHTML=`
+    <div class="result">
+      <h2>4印象軸で判定する、16タイプ（Final + Brand/Style）</h2>
+      <p class="muted">Frame（骨格/肉感）・Surface（広/狭）・Balance（上/下）・Line（直/曲）をスコア化し、4文字コード（例：BHUC）を生成。<br>タイプごとに動物絵文字・コンセプト・似合うブランド・スタイル指針を表示します。</p>
+      <div class="controls">
+        <button id="start">はじめる</button>
+        <button class="secondary" id="how">設計の考え方</button>
+      </div>
+    </div>`;
+  app.appendChild(el);
+  $('#start',el).onclick=()=>{state.step=1;render();};
+  $('#how',el).onclick=()=>alert('Final Edition: Natural=BW系のみ／MWUS⇄MNLC入替／各タイプに動物モチーフ、ブランド、スタイルノートを付与。画像は images/CODE.jpg で任意表示。');
+}
+
+function renderAxis(axis){
+  const {key,label,posLabel,negLabel} = axis;
+  const qs = QUESTIONS[key];
+  const progress = (state.step/5)*100;
+
+  // 1. 画面をまるっと描画
+  app.innerHTML = '';
+  const el = document.createElement('div');
+  el.innerHTML = `
+    <div class="footer" style="margin-bottom:10px">
+      <div class="pill">${state.step}/4：${label}</div>
+      <div class="progress" style="width:58%">
+        <div class="bar" style="width:${progress}%"></div>
+      </div>
+    </div>
+
+    <div class="grid">
+      ${qs.map((q,i)=>`
+        <div class="q">
+          <h4>${i+1}. ${q.t}</h4>
+
+          <div class="scale-btns" data-i="${i}">
+            ${[1,2,3,4,5].map(v=>`
+              <button type="button"
+                class="opt ${v===Number(state.answers[key][i])?'active':''}"
+                data-v="${v}" data-i="${i}" aria-pressed="${v===Number(state.answers[key][i])}">
+                ${v}
+              </button>
+            `).join('')}
+          </div>
+
+          <div class="muted">
+            評価：<span id="v-${key}-${i}">${state.answers[key][i]}</span> / 5
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="footer">
+      <div class="pill">${negLabel} ← スケール → ${posLabel}</div>
+      <div class="controls">
+        <button class="secondary" id="back">戻る</button>
+        <button id="next">次へ</button>
+      </div>
+    </div>
+  `;
+  app.appendChild(el);
+
+  // 2. ボタンの挙動（クリックで値を反映＆見た目更新）
+  el.querySelectorAll('.opt').forEach(btn=>{
+    btn.onclick = () => {
+      const v = +btn.dataset.v;
+      const i = +btn.dataset.i;
+      state.answers[key][i] = v;
+
+      // 見た目（active）＆数値表示を即時更新
+      const group = el.querySelector(`.scale-btns[data-i="${i}"]`);
+      group.querySelectorAll('.opt').forEach(b=>{
+        const on = (+b.dataset.v === v);
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      el.querySelector(`#v-${key}-${i}`).textContent = String(v);
+    };
+  });
+
+  // 3. ナビ
+  el.querySelector('#next').onclick = () => {
+    state.step = Math.min(5, state.step + 1);
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  el.querySelector('#back').onclick = () => {
+    state.step = Math.max(0, state.step - 1);
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+}
+
+function computeAxis(axisKey){
+  const arr = state.answers[axisKey].map(Number);
+  const qs  = QUESTIONS[axisKey];
+  const n   = arr.length;
+
+  // pos=trueならそのまま、falseなら6-vで反転
+  const mapped = arr.map((v,i)=> qs[i].pos ? v : (6 - v));
+
+  // 合計と平均
+  const total = mapped.reduce((a,b)=>a+b,0);
+  const mean5 = total / n;
+  const neutral = 3 * n;
+
+  const ax  = AXES.find(a=>a.key===axisKey);
+  const pos = total > neutral; // 判定基準
+  return { mean: mean5, total, pos, code: pos ? ax.codePos : ax.codeNeg };
+}
+
+// 4軸のコード構築
+function buildCode(){
+  const f=computeAxis('frame'),
+        s=computeAxis('surface'),
+        b=computeAxis('balance'),
+        l=computeAxis('line');
+  return {code:`${f.code}${s.code}${b.code}${l.code}`,scores:{frame:f,surface:s,balance:b,line:l}};
+}
+
+function renderResult(){
+  const {code,scores}=buildCode();
+  const meta=TYPE_META[code]||{name:'未定義タイプ',base:'-',emoji:'',animal:'',image:'',concept:'',brandHints:[],styleNotes:[]};
+     document.body.dataset.theme = meta.base;
+    // --- Google Sheetsに自動送信（最初の1回だけ） ---
+  if (!state._sentOnce) {
+    state._sentOnce = true;
+
+    const sid = localStorage.getItem('km_session')
+      || (localStorage.setItem('km_session', (crypto?.randomUUID?.() ?? String(Math.random()))),
+          localStorage.getItem('km_session'));
+
+    sendToSheets({
+      code,
+      scores,
+      userAgent: navigator.userAgent,
+      sessionId: sid,
+      t: Date.now()
+    });
+  }
+
+  const el=document.createElement('div');
+
+  const bodyDesc=describeBodyByCode(code);
+  const brands=meta.brandHints?.length?meta.brandHints:autoBrands(code,meta.base);
+  const auto=autoStyle(code); 
+  const notes=(meta.styleNotes?.length?meta.styleNotes:[]);
+
+  // ％算出
+  const pf = axisPercent('frame');
+  const ps = axisPercent('surface');
+  const pb = axisPercent('balance');
+  const pl = axisPercent('line');
+
+  // 芸能人ブロック
+  let celebHTML = '';
+  if (meta.celebrities) {
+    const { jp = [], kr = [], global = [] } = meta.celebrities;
+    const group = [
+      { label: '🇯🇵 日本', list: jp },
+      { label: '🇰🇷 韓国', list: kr },
+      { label: '🌍 海外', list: global },
+    ];
+    celebHTML = `
+      <div class="card guide" style="margin-top:12px">
+        <h3>代表的な芸能人</h3>
+        ${group.map(g=> g.list.length
+          ? `<h4>${g.label}</h4><div class="chips">${g.list.map(x=>`<span class="chip">${x}</span>`).join('')}</div>`
+          : ''
+        ).join('')}
+        <p class="small">※ 各タイプにおける芸能人分類は公的なものではなく、スタイリング傾向に基づく参考例です。</p>
+      </div>
+    `;
+  }
+
+  // メーターブロック
+  const barsHTML = `
+    <div class="traits">
+      ${[
+        {key:'Frame', ax:AXES[0], data:pf},
+        {key:'Surface', ax:AXES[1], data:ps},
+        {key:'Balance', ax:AXES[2], data:pb},
+        {key:'Line', ax:AXES[3], data:pl},
+      ].map(({key,ax,data})=>`
+        <div class="trait">
+          <div class="row">
+            <div class="title">${key}：<span class="${data.posSide?'ok':'warn'}">${data.pct}% ${data.sideLabel.replace(/（.*?）/g,'')}</span></div>
+            <div class="percent">${data.pct}%</div>
+          </div>
+          <div class="meter">
+            <div class="fill" style="width:${data.pct}%;"></div>
+            <div class="thumb" style="left:${data.pct}%;"></div>
+          </div>
+          <div class="ends">
+            <span>${ax.negLabel}</span><span>${ax.posLabel}</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  // 結果テンプレ
+  el.innerHTML=`
+    <div class="cols">
+      <div class="card result">
+        <h2>診断結果：<span class="ok">${code}</span> — <span class="em">${meta.emoji||''}</span> ${meta.name}</h2>
+        <div class="tags">
+          <span class="tag">基盤体型：${baseLabel(meta.base)}</span>
+          ${meta.animal?`<span class="tag">motif Animal: ${meta.animal}</span>`:''}
+        </div>
+        <img class="hero" src="${meta.image||''}" alt="${code} image" onerror="this.style.display='none'"/>
+        <p class="concept">${meta.concept||''}</p>
+
+        <p class="muted">4軸の平均スコア</p>
+        ${barsHTML}
+        ${celebHTML}
+        <!-- ★ 同意チェック（送信ON/OFFのトグル） -->
+<label class="consent" style="display:flex;gap:10px;align-items:center;margin:10px 0 4px;">
+  <input type="checkbox" id="consentBox">
+  <span class="small">匿名で診断結果を集計保存することに同意します</span>
+</label>
+
+
+        <div class="card guide" style="margin-top:12px">
+          <h3>どんな骨格？</h3>
+          <p>${bodyDesc}</p>
+
+          <h3>似合いやすいブランド</h3>
+          <div class="chips">${brands.map(b=>`<span class="chip">${b}</span>`).join('')}</div>
+
+          <h3>スタイリング指針</h3>
+          <div class="cols" style="grid-template-columns:1fr 1fr">
+            <div>
+              <h4>素材・質感</h4>
+              <ul>${auto.fabric.map(x=>`<li>${x}</li>`).join('')}</ul>
+              <h4>ネックライン</h4>
+              <ul>${auto.neck.map(x=>`<li>${x}</li>`).join('')}</ul>
+            </div>
+            <div>
+              <h4>シルエット</h4>
+              <ul>${auto.silhouette.map(x=>`<li>${x}</li>`).join('')}</ul>
+              <h4>ライン設計</h4>
+              <ul>${auto.lines.map(x=>`<li>${x}</li>`).join('')}</ul>
+            </div>
+          </div>
+          ${notes.length?`<h4>タイプ固有メモ</h4><ul>${notes.map(n=>`<li>${n}</li>`).join('')}</ul>`:''}
+          <p class="small">※ 提案は各軸（骨格/密度/重心/ライン）のスコアとタイプ固有情報から生成。体型や好みに合わせて微調整してください。</p>
+        </div>
+         <div class="card" style="margin-top:20px; text-align:center;">
+    <h3>他の骨格タイプも見てみる</h3>
+    <p>あなたのタイプ以外の15タイプを比較してみましょう。</p>
+    <a href="gallery.html" class="btn" style="
+      display:inline-block;
+      background:#333;
+      color:white;
+      padding:10px 20px;
+      border-radius:8px;
+      text-decoration:none;
+      transition:all 0.3s;">
+      タイプギャラリーを見る →
+    </a>
+  </div>
+  <div class="share-box">
+  <h3 style="margin-top:0;">結果をシェア</h3>
+  <div class="share-buttons">
+    <button class="share-btn" id="btn-x">Xでシェア</button>
+    <button class="share-btn" id="btn-line">LINEで送る</button>
+    <button class="share-btn" id="btn-copy">リンクをコピー</button>
+  </div>
+
+        <div class="controls">
+          <button id="retry" class="secondary">もう一度</button>
+          <button id="export">結果をJSONで保存</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>タイプ群の解説</h3>
+        <ul>
+          <li><b>WAVE</b>：柔・軽・下重心・曲線（🩰 Airy / Gentle / Dreamlike）</li>
+          <li><b>NATURAL</b>：骨感・直線・中庸（🌿 Calm / Organic / Minimal）※BL系のみ</li>
+          <li><b>STRAIGHT</b>：厚・立体・上重心・直線（🖤 Modern / Powerful / Elegant）</li>
+        </ul>
+      </div>
+    </div>
+  `;
+
+// === 自動送信（同意ON かつ 未送信のとき一度だけ） ===
+if (!state._sentOnce) {
+  const agreed = getConsent() === 'yes';
+  if (agreed) {
+    state._sentOnce = true;
+
+    const sid = localStorage.getItem('km_session')
+      || (localStorage.setItem('km_session', (crypto?.randomUUID?.() ?? String(Math.random()))),
+          localStorage.getItem('km_session'));
+
+    const payload = { code, scores, userAgent:navigator.userAgent, sessionId:sid, t:Date.now() };
+    sendToSheets(payload);
+  }
+}
+
+  // ここで一度だけ append
+
+  app.appendChild(el);
+ 
+// ===== 共有ボタン紐づけ（renderResult() の最後で実行） =====
+(() => {
+  const { code } = buildCode();
+  const meta = TYPE_META[code] || { name:'', emoji:'' };
+
+  // タイトルとURL
+  const shareTitle = `${meta.emoji ?? ''} ${meta.name || code}（${code}）`;
+  const shareUrl   = location.href.split('#')[0];
+
+  const bx = document.getElementById('btn-x');
+  if (bx) bx.onclick = () => {
+    const t = encodeURIComponent(`骨格MBTI診断の結果は「${shareTitle}」でした！`);
+    const u = encodeURIComponent(shareUrl);
+    window.open(`https://twitter.com/intent/tweet?text=${t}&url=${u}`, '_blank');
+  };
+
+  const bl = document.getElementById('btn-line');
+  if (bl) bl.onclick = () => {
+    const t = encodeURIComponent(`骨格MBTI診断の結果は「${shareTitle}」でした！\n${shareUrl}`);
+    window.open(`https://line.me/R/msg/text/?${t}`, '_blank');
+  };
+
+  const bc = document.getElementById('btn-copy');
+  if (bc) bc.onclick = () => {
+    navigator.clipboard.writeText(shareUrl).then(()=>alert('リンクをコピーしました'));
+  };
+})();
+
+
+  // === 同意チェックの初期状態とイベント ===
+const cb = document.getElementById('consentBox');
+if (cb) {
+  // 既存の同意状態で初期化
+  cb.checked = (getConsent() === 'yes');
+
+  cb.onchange = () => {
+    setConsent(cb.checked);
+    // チェックONに切り替えた直後、まだ送っていなければ送る（1回だけ）
+    if (cb.checked && !state._sentOnce) {
+      state._sentOnce = true;
+
+      const sid = localStorage.getItem('km_session')
+        || (localStorage.setItem('km_session', (crypto?.randomUUID?.() ?? String(Math.random()))),
+            localStorage.getItem('km_session'));
+
+      const { code, scores } = buildCode(); // 念のため最新を取得
+      sendToSheets({ code, scores, userAgent:navigator.userAgent, sessionId:sid, t:Date.now() });
+    }
+  };
+}
+
+
+  // イベント
+  $('#retry', el).onclick = () => {
+  state = makeInitialState();          // ぜんぶリセット
+  state.step = 0;                      // すぐ最初の軸から再開したいなら1に
+  render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+
+  $('#export',el).onclick=()=>{ 
+  // JSON保存
+  const payload={code,meta,scores,answers:state.answers};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=`kokkaku-mbti-${code}.json`; a.click();
+  URL.revokeObjectURL(url);
+
+  // ボタンでも送るが、一度送っていれば送らない
+  if (!state._sentOnce) {
+    state._sentOnce = true;
+    sendToSheets({ code, scores, userAgent:navigator.userAgent, t:Date.now() });
+  }
+}
+
+}
+
+
+// テーブルの前に入れたい場合は↓の行の直前に ${barsHTML} を挿入
+
+function baseLabel(b){
+  return b==='WAVE'?'WAVE（柔・軽・下重心）'
+       : b==='STRAIGHT'?'STRAIGHT（厚・立体・上重心）'
+       : b==='NATURAL'?'NATURAL（骨感・直線・ラフ）' : b;
+}
+render();
+/* ───── ％バー用：各軸の「右側寄り％」を算出 ───── */
+function axisPercent(axisKey){
+  const arr = state.answers[axisKey].map(Number);
+  const qs  = QUESTIONS[axisKey];
+
+  // 0..1 正規化（左向き設問は反転）
+  const normalized = arr.map((v,i)=>{
+    const s = (v-1)/4;          // 1→0, 5→1
+    return qs[i].pos ? s : (1-s);
+  });
+  const avg = normalized.reduce((a,b)=>a+b,0)/normalized.length; // 0..1
+  const pct = Math.round(avg*100); // 0..100（右側＝codePos方向の％）
+
+  // ラベル決定（どちら寄りか）
+  const ax = AXES.find(a=>a.key===axisKey);
+  const sideLabel = (pct>50) ? ax.posLabel : ax.negLabel;
+  return { pct, sideLabel, posSide: pct>50 };
+}
+
+
+</script>
+
+
+
+</body>
+</html>
